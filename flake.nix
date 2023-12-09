@@ -24,6 +24,7 @@
       name = "AudioForge";
       nativeBuildInputs = with pkgs; [
         pkg-config
+        wrapGAppsHook
 
         libxkbcommon
         libGL
