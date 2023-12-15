@@ -44,8 +44,15 @@
         openssl
         xorg.libxcb
         gtkd
+        clang
+
+        ffmpeg
+        libclang
+        stdenv.cc.cc
+        glib
       ];
       LD_LIBRARY_PATH = "${with pkgs; lib.makeLibraryPath nativeBuildInputs}";
+      LIBCLANG_PATH = pkgs.libclang.lib + "/lib";
     };
   });
 }
