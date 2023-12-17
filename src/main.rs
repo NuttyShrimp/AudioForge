@@ -12,9 +12,12 @@ mod state;
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
+    std::env::set_var("WINIT_UNIX_BACKEND", "x11");
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([800.0, 600.0])
+            .with_drag_and_drop(true),
         ..Default::default()
     };
 
