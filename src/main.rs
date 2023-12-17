@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use eframe::egui;
 use egui::Ui;
+use log::error;
 use state::{LoadedTabs, MenuEntry, State};
 use strum::IntoEnumIterator;
 
@@ -51,9 +52,15 @@ impl AudioForge {
             ui.menu_button("File", |ui| {
                 // if ui.button("Open project").clicked() {} // With the recent opened projects
                 if ui.button("Close project").clicked() {
-                    self.state
-                        .borrow_mut()
-                        .change_menu(MenuEntry::ProjectSelector);
+                    let mut state = self.state.borrow_mut();
+                    if let Some(project) = state.active_project.as_mut() {
+                        let res = project.save();
+                        if res.is_err() {
+                            error!("Failed to save project: {:?}", res.unwrap_err());
+                        }
+                    }
+                    state.close_project();
+                    state.change_menu(MenuEntry::ProjectSelector);
                 }
             })
         });
@@ -102,5 +109,13 @@ impl eframe::App for AudioForge {
         // Top tabbed panel
         self.app_tab_bar(ctx);
         self.show_selected_app(ctx, frame)
+    }
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        if let Some(project) = self.state.borrow_mut().active_project.as_mut() {
+            let res = project.save();
+            if res.is_err() {
+                error!("Failed to save project: {:?}", res.unwrap_err());
+            }
+        }
     }
 }
