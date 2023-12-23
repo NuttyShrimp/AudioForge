@@ -1,7 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
 use eframe::egui;
-use egui::Ui;
 use log::error;
 use state::{LoadedTabs, MenuEntry, State};
 use strum::IntoEnumIterator;
@@ -10,9 +9,11 @@ mod components;
 mod dat_files;
 mod project_mgmt;
 mod state;
+mod utils;
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
+    ffmpeg_next::init().unwrap();
     std::env::set_var("WINIT_UNIX_BACKEND", "x11");
 
     let options = eframe::NativeOptions {
@@ -47,36 +48,26 @@ impl Default for AudioForge {
 }
 
 impl AudioForge {
-    fn menu_bar(&mut self, ui: &mut Ui) {
-        egui::menu::bar(ui, |ui| {
-            ui.menu_button("File", |ui| {
-                // if ui.button("Open project").clicked() {} // With the recent opened projects
-                if ui.button("Close project").clicked() {
-                    let mut state = self.state.borrow_mut();
-                    if let Some(project) = state.active_project.as_mut() {
-                        let res = project.save();
-                        if res.is_err() {
-                            error!("Failed to save project: {:?}", res.unwrap_err());
-                        }
-                    }
-                    state.close_project();
-                    state.change_menu(MenuEntry::ProjectSelector);
-                }
-            })
-        });
-    }
-
     fn app_tab_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("top_nav_bar").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                self.menu_bar(ui);
-            });
-            ui.separator();
-
             let mut state = self.state.borrow_mut();
             let selected_entry = state.active_menu;
             ui.horizontal_wrapped(|ui| {
                 ui.visuals_mut().button_frame = false;
+
+                ui.menu_button("File", |ui| {
+                    // if ui.button("Open project").clicked() {} // With the recent opened projects
+                    if ui.button("Close project").clicked() {
+                        if let Some(project) = state.active_project.as_mut() {
+                            let res = project.save();
+                            if res.is_err() {
+                                error!("Failed to save project: {:?}", res.unwrap_err());
+                            }
+                        }
+                        state.close_project();
+                        state.change_menu(MenuEntry::ProjectSelector);
+                    }
+                });
 
                 for entry in MenuEntry::iter() {
                     if let Some(label) = entry.label() {

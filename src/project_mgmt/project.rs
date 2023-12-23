@@ -4,13 +4,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::awc;
+use super::awc::{self, AwcPack};
 use anyhow::Result;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Project {
     #[serde(skip_serializing, skip_deserializing)]
-    location: PathBuf,
+    pub location: PathBuf,
     pub awc_info: Vec<awc::AwcPack>,
 }
 
@@ -51,10 +51,18 @@ impl Project {
         Err(anyhow::format_err!(""))
     }
 
+    pub fn get_mut_entries_slice(&mut self) -> &mut [AwcPack] {
+        return self.awc_info.as_mut_slice();
+    }
+
     pub fn save(&self) -> Result<()> {
         let json_str = serde_json::to_string(self)?;
         let mut f = File::create(self.location.join("info.json"))?;
         f.write_all(json_str.as_bytes())?;
         Ok(())
+    }
+
+    pub fn add_awc_pack(&mut self, pack: AwcPack) {
+        self.awc_info.push(pack);
     }
 }
