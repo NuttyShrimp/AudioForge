@@ -40,49 +40,55 @@ impl AwcGenerator {
     }
 }
 
+impl AwcGenerator {
+    fn create_audio_pack_windows(&mut self, ctx: &egui::Context, show_create_window: &mut bool) {
+        Window::new("Create new audio pack")
+            .title_bar(true)
+            .collapsible(false)
+            .resizable(false)
+            .default_size([600.0, 300.0])
+            .open(show_create_window)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let name_label = ui.label("Pack name");
+                    ui.text_edit_singleline(&mut self.creator_window_state.name)
+                        .labelled_by(name_label.id);
+                });
+                ui.horizontal(|ui| {
+                    let pack_label = ui.label("Pack type");
+                    egui::ComboBox::from_id_source(pack_label.id)
+                        .width(200.0)
+                        .selected_text(&self.creator_window_state.pack_type.to_string())
+                        .show_ui(ui, |ui| {
+                            for option in AwcPackType::iter() {
+                                ui.selectable_value(
+                                    &mut self.creator_window_state.pack_type,
+                                    option.clone(),
+                                    option.to_string(),
+                                );
+                            }
+                        });
+                });
+                if ui.button("Create").clicked() {
+                    let pack = awc::AwcPack {
+                        name: self.creator_window_state.name.clone(),
+                        pack_type: self.creator_window_state.pack_type.clone(),
+                        entries: vec![],
+                    };
+                    if let Some(project) = self.state.borrow_mut().active_project.as_mut() {
+                        project.add_awc_pack(pack);
+                        self.creator_window_state.visible = false;
+                    }
+                }
+            });
+    }
+}
+
 impl eframe::App for AwcGenerator {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let mut show_create_window = self.creator_window_state.visible;
         if show_create_window {
-            Window::new("Create new audio pack")
-                .title_bar(true)
-                .collapsible(false)
-                .resizable(false)
-                .default_size([600.0, 300.0])
-                .open(&mut show_create_window)
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        let name_label = ui.label("Pack name");
-                        ui.text_edit_singleline(&mut self.creator_window_state.name)
-                            .labelled_by(name_label.id);
-                    });
-                    ui.horizontal(|ui| {
-                        let pack_label = ui.label("Pack type");
-                        egui::ComboBox::from_id_source(pack_label.id)
-                            .width(200.0)
-                            .selected_text(&self.creator_window_state.pack_type.to_string())
-                            .show_ui(ui, |ui| {
-                                for option in AwcPackType::iter() {
-                                    ui.selectable_value(
-                                        &mut self.creator_window_state.pack_type,
-                                        option.clone(),
-                                        option.to_string(),
-                                    );
-                                }
-                            });
-                    });
-                    if ui.button("Create").clicked() {
-                        let pack = awc::AwcPack {
-                            name: self.creator_window_state.name.clone(),
-                            pack_type: self.creator_window_state.pack_type.clone(),
-                            entries: vec![],
-                        };
-                        if let Some(project) = self.state.borrow_mut().active_project.as_mut() {
-                            project.add_awc_pack(pack);
-                            self.creator_window_state.visible = false;
-                        }
-                    }
-                });
+            self.create_audio_pack_windows(ctx, &mut show_create_window);
         }
         self.creator_window_state.visible &= show_create_window;
 
