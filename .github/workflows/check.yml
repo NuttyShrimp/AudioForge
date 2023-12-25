@@ -1,0 +1,54 @@
+name: Validate files
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+
+jobs:
+  rustfmt:
+    name: Rustfmt
+
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.74.0
+          override: true
+          components: rustfmt
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: stable-cache
+
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.74.0
+          override: true
+          components: clippy
+
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: stable-cache
+
+      - name: Run Clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          args: --workspace --all-features
+          token: ${{ secrets.GITHUB_TOKEN }}
