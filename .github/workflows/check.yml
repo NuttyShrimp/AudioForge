@@ -14,10 +14,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.74.0
-          override: true
           components: rustfmt
 
       - name: Cache Rust Dependencies
@@ -36,11 +35,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.74.0
-          override: true
           components: clippy
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Cache Rust Dependencies
         uses: Swatinem/rust-cache@v2
@@ -48,7 +49,4 @@ jobs:
           shared-key: stable-cache
 
       - name: Run Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          args: --workspace --all-features
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo clippy --message-format=json --workspace --all-features
