@@ -14,7 +14,7 @@ mod utils;
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
     ffmpeg_next::init().unwrap();
-    std::env::set_var("WINIT_UNIX_BACKEND", "x11");
+    // std::env::set_var("WINIT_UNIX_BACKEND", "x11");
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
