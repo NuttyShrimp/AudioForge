@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fs, rc::Rc};
+use std::{cell::RefCell, fs, path::Path, rc::Rc};
 
 use anyhow::{anyhow, Result};
 use eframe::egui;
@@ -160,13 +160,13 @@ impl eframe::App for AwcGenerator {
         self.creator_window_state.visible &= show_create_window;
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut state = self.state.borrow_mut();
-            if state.active_project.is_none() {
-                return;
-            }
-            let project = state.active_project.as_mut().unwrap();
-
             ui.horizontal(|ui| {
+                let state = self.state.borrow();
+                if state.active_project.is_none() {
+                    return;
+                }
+                let project = state.active_project.as_ref().unwrap();
+
                 egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
                     .selected_text(&project.awc_info[self.active_pack].name)
                     .show_ui(ui, |ui| {
@@ -183,30 +183,57 @@ impl eframe::App for AwcGenerator {
                             });
                     });
 
-                if ui.add(egui::Button::new("New audio pack")).clicked() {
+                if ui.button("New audio pack").clicked() {
                     self.creator_window_state.name = String::from("");
                     self.creator_window_state.visible = true;
                 }
+
+                if project.awc_info.len() == 0 {
+                    return;
+                }
+
+                drop(state);
+
+                if ui.button("Add audio file").clicked() {
+                    // TODO: Make this usable in spawnable thread so render thread is not blocked
+                    if let Some(paths) = rfd::FileDialog::new()
+                        .set_title("Select to be added audio files")
+                        .pick_files()
+                    {
+                        for path in paths {
+                            if self::AwcGenerator::validate_file(&path).is_ok() {
+                                let process = self.import_file(&path);
+                                if process.is_err() {
+                                    error!("{:?}", process.unwrap_err());
+                                }
+                            };
+                        }
+                    }
+                }
             });
 
+            let state = self.state.borrow();
+            if state.active_project.is_none() {
+                return;
+            }
+            let project = state.active_project.as_ref().unwrap();
             if project.awc_info.len() == 0 {
                 return;
             }
             drop(state);
+
             self.show_awc_entry_table(ui);
             ui.set_min_height(ui.available_height());
 
             ctx.input(|i| {
                 for file in i.raw.dropped_files.iter() {
-                    if self::AwcGenerator::validate_file(file).is_ok() {
-                        let process = self.import_file(file);
-                        if process.is_err() {
-                            error!("{:?}", process.unwrap_err());
-                        }
-                        // let process = self.split_and_import_file(file);
-                        // if process.is_err() {
-                        //     error!("{:?}", process.unwrap_err());
-                        // }
+                    if let Some(path) = &file.path {
+                        if self::AwcGenerator::validate_file(path).is_ok() {
+                            let process = self.import_file(path);
+                            if process.is_err() {
+                                error!("{:?}", process.unwrap_err());
+                            }
+                        };
                     };
                 }
             });
@@ -215,26 +242,19 @@ impl eframe::App for AwcGenerator {
 }
 
 impl AwcGenerator {
-    fn validate_file(file: &DroppedFile) -> Result<()> {
-        if let Some(path) = &file.path {
-            let input_format = format::input(&path)?;
-            let input = input_format.streams().best(media::Type::Audio);
-            if input.is_none() {
-                return Err(anyhow!(
-                    "File does not contain audio stream: {}",
-                    path.display().to_string()
-                ));
-            }
-            return Ok(());
+    fn validate_file(path: &Path) -> Result<()> {
+        let input_format = format::input(&path)?;
+        let input = input_format.streams().best(media::Type::Audio);
+        if input.is_none() {
+            return Err(anyhow!(
+                "File does not contain audio stream: {}",
+                path.display().to_string()
+            ));
         }
-        Err(anyhow!("Invalid dropped file: not path"))
+        Ok(())
     }
 
-    fn import_file(&mut self, file: &DroppedFile) -> Result<()> {
-        if let None = &file.path {
-            return Err(anyhow!("Invalid dropped file: not path"));
-        }
-        let path = file.path.as_ref().unwrap();
+    fn import_file(&mut self, path: &Path) -> Result<()> {
         let mut state = self.state.borrow_mut();
         let project = state.active_project.as_mut().unwrap();
         let awc_pack = &project.awc_info[self.active_pack];
