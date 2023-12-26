@@ -1,4 +1,4 @@
-#[derive(Default, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Header {
     volume: i16, // in dB
     volume_curve: String,

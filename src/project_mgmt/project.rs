@@ -64,5 +64,6 @@ impl Project {
 
     pub fn add_awc_pack(&mut self, pack: AwcPack) {
         self.awc_info.push(pack);
+        self.awc_info.sort();
     }
 }

@@ -6,11 +6,17 @@ use strum::EnumIter;
 
 use crate::dat_files::dat54;
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq, Ord)]
 pub struct AwcPack {
     pub name: String,
     pub pack_type: AwcPackType,
     pub entries: Vec<AwcEntry>,
+}
+
+impl PartialOrd for AwcPack {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
 }
 
 impl AwcPack {
@@ -26,7 +32,7 @@ impl AwcPack {
     }
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AwcEntry {
     path: PathBuf,
     pub name: String,
@@ -74,7 +80,19 @@ impl AwcEntry {
     }
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Default, PartialEq, EnumIter, Clone)]
+#[derive(
+    Debug,
+    serde::Deserialize,
+    serde::Serialize,
+    Default,
+    PartialEq,
+    EnumIter,
+    Clone,
+    Copy,
+    Eq,
+    PartialOrd,
+    Ord,
+)]
 pub enum AwcPackType {
     #[default]
     Simple,

@@ -8,6 +8,7 @@ use ffmpeg_next::{
     format::{self},
     media,
 };
+use itertools::Itertools;
 use log::{error, info};
 use strum::IntoEnumIterator;
 
@@ -169,9 +170,17 @@ impl eframe::App for AwcGenerator {
                 egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
                     .selected_text(&project.awc_info[self.active_pack].name)
                     .show_ui(ui, |ui| {
-                        for (i, awc_pack) in project.awc_info.iter().enumerate() {
-                            ui.selectable_value(&mut self.active_pack, i, &awc_pack.name);
-                        }
+                        project
+                            .awc_info
+                            .iter()
+                            .group_by(|e| e.pack_type)
+                            .into_iter()
+                            .for_each(|(key, group)| {
+                                ui.add(egui::Label::new(key.to_string()).wrap(false));
+                                for (awc_pack, i) in group.into_iter().zip(0..) {
+                                    ui.selectable_value(&mut self.active_pack, i, &awc_pack.name);
+                                }
+                            });
                     });
 
                 if ui.add(egui::Button::new("New audio pack")).clicked() {
