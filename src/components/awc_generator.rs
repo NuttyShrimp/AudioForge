@@ -82,6 +82,72 @@ impl AwcGenerator {
                 }
             });
     }
+
+    fn show_awc_entry_table(&self, ui: &mut egui::Ui) {
+        let mut state = self.state.borrow_mut();
+        if state.active_project.is_none() {
+            return;
+        }
+        let project = state.active_project.as_mut().unwrap();
+        if project.awc_info.len() <= self.active_pack {
+            return;
+        }
+        egui::ScrollArea::horizontal().show(ui, |ui| {
+            let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
+
+            let table = TableBuilder::new(ui)
+                .striped(true)
+                .resizable(true)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::auto())
+                .column(Column::auto())
+                .column(Column::auto())
+                .column(Column::remainder());
+
+            table
+                .header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.strong("Name");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Looped");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Headers");
+                    });
+                    header.col(|ui| {
+                        ui.label("");
+                    });
+                })
+                .body(|body| {
+                    body.rows(
+                        text_height,
+                        project.awc_info[self.active_pack].entries.len(),
+                        |row_index, mut row| {
+                            let entry = &mut project.awc_info[self.active_pack].entries[row_index];
+                            row.col(|ui| {
+                                ui.label(&entry.name);
+                            });
+                            row.col(|ui| {
+                                ui.checkbox(&mut entry.looped, "Looped");
+                            });
+                            row.col(|ui| {
+                                if ui.button("Headers").clicked() {
+                                    info!("OPen headers popup")
+                                };
+                            });
+                            row.col(|ui| {
+                                if ui.button("Delete").clicked() {
+                                    let _ = project.awc_info[self.active_pack]
+                                        .entries
+                                        .remove(row_index);
+                                };
+                            });
+                        },
+                    );
+                });
+        });
+    }
 }
 
 impl eframe::App for AwcGenerator {
@@ -114,65 +180,13 @@ impl eframe::App for AwcGenerator {
                 }
             });
 
-            egui::ScrollArea::horizontal().show(ui, |ui| {
-                let text_height = egui::TextStyle::Body.resolve(ui.style()).size;
-
-                let table = TableBuilder::new(ui)
-                    .striped(true)
-                    .resizable(true)
-                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .column(Column::auto())
-                    .column(Column::auto())
-                    .column(Column::auto())
-                    .column(Column::remainder());
-
-                table
-                    .header(20.0, |mut header| {
-                        header.col(|ui| {
-                            ui.strong("Name");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Looped");
-                        });
-                        header.col(|ui| {
-                            ui.strong("Headers");
-                        });
-                        header.col(|ui| {
-                            ui.label("");
-                        });
-                    })
-                    .body(|body| {
-                        body.rows(
-                            text_height,
-                            project.awc_info[self.active_pack].entries.len(),
-                            |row_index, mut row| {
-                                let entry =
-                                    &mut project.awc_info[self.active_pack].entries[row_index];
-                                row.col(|ui| {
-                                    ui.label(&entry.name);
-                                });
-                                row.col(|ui| {
-                                    ui.checkbox(&mut entry.looped, "Looped");
-                                });
-                                row.col(|ui| {
-                                    if ui.button("Headers").clicked() {
-                                        info!("OPen headers popup")
-                                    };
-                                });
-                                row.col(|ui| {
-                                    if ui.button("Delete").clicked() {
-                                        let _ = project.awc_info[self.active_pack]
-                                            .entries
-                                            .remove(row_index);
-                                    };
-                                });
-                            },
-                        );
-                    });
-            });
+            if project.awc_info.len() == 0 {
+                return;
+            }
+            drop(state);
+            self.show_awc_entry_table(ui);
             ui.set_min_height(ui.available_height());
 
-            drop(state);
             ctx.input(|i| {
                 for file in i.raw.dropped_files.iter() {
                     if self::AwcGenerator::validate_file(file).is_ok() {
