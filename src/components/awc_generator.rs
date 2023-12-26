@@ -176,10 +176,14 @@ impl eframe::App for AwcGenerator {
             ctx.input(|i| {
                 for file in i.raw.dropped_files.iter() {
                     if self::AwcGenerator::validate_file(file).is_ok() {
-                        let process = self.split_and_import_file(file);
+                        let process = self.import_file(file);
                         if process.is_err() {
                             error!("{:?}", process.unwrap_err());
                         }
+                        // let process = self.split_and_import_file(file);
+                        // if process.is_err() {
+                        //     error!("{:?}", process.unwrap_err());
+                        // }
                     };
                 }
             });
@@ -203,7 +207,38 @@ impl AwcGenerator {
         Err(anyhow!("Invalid dropped file: not path"))
     }
 
-    fn split_and_import_file(&mut self, file: &DroppedFile) -> Result<()> {
+    fn import_file(&mut self, file: &DroppedFile) -> Result<()> {
+        if let None = &file.path {
+            return Err(anyhow!("Invalid dropped file: not path"));
+        }
+        let path = file.path.as_ref().unwrap();
+        let mut state = self.state.borrow_mut();
+        let project = state.active_project.as_mut().unwrap();
+        let awc_pack = &project.awc_info[self.active_pack];
+
+        let entry_name = &path.file_stem().unwrap().to_string_lossy().to_string();
+        let output_dir = project
+            .location
+            .clone()
+            .join("awc_packs")
+            .join(awc_pack.name.clone());
+        fs::create_dir_all(output_dir.as_path())?;
+
+        transcoder::encode_to_wav(&path, &output_dir)?;
+
+        let proj_loc = project.location.clone();
+        project.get_mut_entries_slice()[self.active_pack].add_entry(
+            &proj_loc,
+            &output_dir,
+            entry_name,
+        )?;
+
+        Ok(())
+    }
+
+    // TODO: parameter should be changed to AwcEtry
+    #[allow(dead_code)]
+    fn split_file(&mut self, file: &DroppedFile) -> Result<()> {
         if let None = &file.path {
             return Err(anyhow!("Invalid dropped file: not path"));
         }
@@ -229,6 +264,6 @@ impl AwcGenerator {
             entry_name,
         )?;
 
-        return Ok(());
+        Ok(())
     }
 }

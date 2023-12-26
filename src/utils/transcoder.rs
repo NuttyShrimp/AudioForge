@@ -54,6 +54,7 @@ fn transcoder(
     ictx: &mut format::context::Input,
     octx: &mut format::context::Output,
     filter_spec: &str,
+    channel_layout: ChannelLayout,
 ) -> Result<Transcoder, ffmpeg_next::Error> {
     let input = ictx
         .streams()
@@ -84,8 +85,8 @@ fn transcoder(
 
     // Set base encoder settings
     encoder.set_rate(decoder.rate() as i32);
-    encoder.set_channel_layout(ChannelLayout::MONO);
-    encoder.set_channels(ChannelLayout::MONO.channels());
+    encoder.set_channel_layout(channel_layout);
+    encoder.set_channels(channel_layout.channels());
     encoder.set_format(
         codec
             .formats()
@@ -117,9 +118,29 @@ fn transcoder(
     })
 }
 
-struct PannedTranscoder {
-    pub transcoder: Transcoder,
-    pub octx: format::context::Output,
+pub fn encode_to_wav(input: &Path, output_dir: &Path) -> Result<()> {
+    let mut ictx = format::input(&input)?;
+    let mut octx = format::output(
+        &output_dir
+            .join(format!(
+                "{}.wav",
+                input.file_stem().unwrap().to_string_lossy()
+            ))
+            .as_path(),
+    )?;
+
+    let transcoder = transcoder(&mut ictx, &mut octx, "anull", ChannelLayout::MONO)?;
+
+    octx.write_header().unwrap();
+
+    let mut process = TranscoderProcess { transcoder, octx };
+
+    for (stream, mut packet) in ictx.packets() {
+        process.process_packet(&stream, &mut packet)
+    }
+
+    process.cleanup();
+    Ok(())
 }
 
 pub fn split_stereo_to_mono(input: &Path, output_dir: &Path) -> Result<()> {
@@ -141,18 +162,19 @@ pub fn split_stereo_to_mono(input: &Path, output_dir: &Path) -> Result<()> {
             .as_path(),
     )?;
 
-    let left_transcoder = transcoder(&mut ictx, &mut loctx, "pan=mono|c0=FL")?;
-    let right_transcoder = transcoder(&mut ictx, &mut roctx, "pan=mono|c0=FR")?;
+    let left_transcoder = transcoder(&mut ictx, &mut loctx, "pan=mono|c0=FL", ChannelLayout::MONO)?;
+    let right_transcoder =
+        transcoder(&mut ictx, &mut roctx, "pan=mono|c0=FR", ChannelLayout::MONO)?;
 
     loctx.write_header().unwrap();
     roctx.write_header().unwrap();
 
     let mut transcoders = vec![
-        PannedTranscoder {
+        TranscoderProcess {
             transcoder: left_transcoder,
             octx: loctx,
         },
-        PannedTranscoder {
+        TranscoderProcess {
             transcoder: right_transcoder,
             octx: roctx,
         },
@@ -160,26 +182,12 @@ pub fn split_stereo_to_mono(input: &Path, output_dir: &Path) -> Result<()> {
 
     for (stream, mut packet) in ictx.packets() {
         for t in transcoders.as_mut_slice() {
-            if stream.index() == t.transcoder.stream {
-                packet.rescale_ts(stream.time_base(), t.transcoder.in_time_base);
-                t.transcoder.send_packet_to_decoder(&packet);
-                t.transcoder.receive_and_process_decoded_frames(&mut t.octx);
-            }
+            t.process_packet(&stream, &mut packet)
         }
     }
 
     for t in transcoders.as_mut_slice() {
-        t.transcoder.send_eof_to_decoder();
-        t.transcoder.receive_and_process_decoded_frames(&mut t.octx);
-
-        t.transcoder.flush_filter();
-        t.transcoder.get_and_process_filtered_frames(&mut t.octx);
-
-        t.transcoder.send_eof_to_encoder();
-        t.transcoder
-            .receive_and_process_encoded_packets(&mut t.octx);
-
-        t.octx.write_trailer().unwrap();
+        t.cleanup()
     }
     Ok(())
 }
@@ -249,5 +257,38 @@ impl Transcoder {
             self.add_frame_to_filter(&frame);
             self.get_and_process_filtered_frames(octx);
         }
+    }
+}
+
+struct TranscoderProcess {
+    pub transcoder: Transcoder,
+    pub octx: format::context::Output,
+}
+
+impl TranscoderProcess {
+    fn process_packet(&mut self, stream: &ffmpeg::Stream, packet: &mut ffmpeg::Packet) {
+        if stream.index() == self.transcoder.stream {
+            packet.rescale_ts(stream.time_base(), self.transcoder.in_time_base);
+            self.transcoder.send_packet_to_decoder(&packet);
+            self.transcoder
+                .receive_and_process_decoded_frames(&mut self.octx);
+        }
+    }
+
+    fn cleanup(&mut self) {
+        // Cleanup the output context
+        self.transcoder.send_eof_to_decoder();
+        self.transcoder
+            .receive_and_process_decoded_frames(&mut self.octx);
+
+        self.transcoder.flush_filter();
+        self.transcoder
+            .get_and_process_filtered_frames(&mut self.octx);
+
+        self.transcoder.send_eof_to_encoder();
+        self.transcoder
+            .receive_and_process_encoded_packets(&mut self.octx);
+
+        self.octx.write_trailer().unwrap();
     }
 }

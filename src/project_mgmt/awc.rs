@@ -28,8 +28,7 @@ impl AwcPack {
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct AwcEntry {
-    left_path: PathBuf,
-    right_path: PathBuf,
+    path: PathBuf,
     pub name: String,
     pub looped: bool,
     pub headers: dat54::Header,
@@ -44,8 +43,8 @@ impl AwcEntry {
         entry_path: &PathBuf,
         entry_name: &str,
     ) -> Result<AwcEntry> {
-        let left_path = entry_path.join(format!("{}-left.wav", entry_name));
-        let ictx = ffmpeg::format::input(&left_path)?;
+        let entry_path = entry_path.join(format!("{}.wav", entry_name));
+        let ictx = ffmpeg::format::input(&entry_path)?;
 
         let input = ictx
             .streams()
@@ -55,7 +54,7 @@ impl AwcEntry {
 
         let sample_rate = context.decoder().audio().unwrap().rate();
 
-        let rel_path_res = proj_path.strip_prefix(entry_path);
+        let rel_path_res = entry_path.strip_prefix(&proj_path);
         if rel_path_res.is_err() {
             return Err(anyhow!(
                 "Given entry files are not stored in the project directory"
@@ -65,8 +64,7 @@ impl AwcEntry {
         let rel_path = rel_path_res.unwrap();
 
         Ok(AwcEntry {
-            left_path: rel_path.join(format!("{}-left.wav", entry_name)),
-            right_path: rel_path.join(format!("{}-right.wav", entry_name)),
+            path: rel_path.to_path_buf(),
             name: entry_name.to_string(),
             looped: false,
             headers: dat54::Header::default(),
