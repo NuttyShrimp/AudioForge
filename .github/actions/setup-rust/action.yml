@@ -24,6 +24,11 @@ runs:
       with:
         version: 16
 
+    - name: run-vcpkg
+      if: runner.os == 'Windows'
+      uses: lukka/run-vcpkg@v11
+            
+
     - name: Cache Rust Dependencies
       uses: Swatinem/rust-cache@v2
       with:
