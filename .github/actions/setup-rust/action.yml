@@ -26,6 +26,7 @@ runs:
 
     - name: Setup PkgConfig (Windows)
       if: runner.os == 'Windows'
+      shell: pwsh
       env:
         PKG_CONFIG_ZIP: "http://ftp.gnome.org/pub/gnome/binaries/win32/dependencies/pkg-config_0.26-1_win32.zip"
         GETTEXT_RUNTIME_ZIP: "http://ftp.gnome.org/pub/gnome/binaries/win32/dependencies/gettext-runtime_0.18.1.1-2_win32.zip"
