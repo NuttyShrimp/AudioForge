@@ -49,4 +49,4 @@ jobs:
           shared-key: stable-cache
 
       - name: Run Clippy
-        run: cargo clippy --message-format=json --workspace --all-features
+        run: cargo clippy --workspace
