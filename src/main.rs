@@ -85,7 +85,7 @@ impl AudioForge {
 
     fn show_selected_app(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let state = self.state.borrow();
-        let mut menu_entry = state.active_menu.clone();
+        let mut menu_entry = state.active_menu;
         if state.active_project.is_none() {
             menu_entry = MenuEntry::ProjectSelector;
         }

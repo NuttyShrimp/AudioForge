@@ -15,22 +15,22 @@ pub struct Project {
 }
 
 impl Project {
-    fn create_project(path: &PathBuf) -> Result<()> {
+    fn create_project(path: &Path) -> Result<()> {
         let proj = Project {
-            location: path.clone(),
+            location: path.to_path_buf().clone(),
             awc_info: vec![],
         };
         proj.save()?;
         Ok(())
     }
 
-    fn open_project(path: &PathBuf) -> Result<Project> {
+    fn open_project(path: &Path) -> Result<Project> {
         let mut f = File::open(path.join("info.json"))?;
         let mut buffer = String::new();
 
         f.read_to_string(&mut buffer)?;
         let mut proj: Project = serde_json::from_str(&buffer)?;
-        proj.location = path.clone();
+        proj.location = path.to_path_buf().clone();
 
         Ok(proj)
     }

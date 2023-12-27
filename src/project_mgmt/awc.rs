@@ -1,12 +1,12 @@
 extern crate ffmpeg_next as ffmpeg;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 use strum::EnumIter;
 
 use crate::dat_files::dat54;
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq, Ord)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct AwcPack {
     pub name: String,
     pub pack_type: AwcPackType,
@@ -15,7 +15,13 @@ pub struct AwcPack {
 
 impl PartialOrd for AwcPack {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name.partial_cmp(&other.name)
+        Some(self.name.cmp(&other.name))
+    }
+}
+
+impl Ord for AwcPack {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
     }
 }
 
@@ -23,7 +29,7 @@ impl AwcPack {
     pub fn add_entry(
         &mut self,
         proj_path: &PathBuf,
-        entry_path: &PathBuf,
+        entry_path: &Path,
         entry_name: &str,
     ) -> anyhow::Result<()> {
         let entry = AwcEntry::from_file(proj_path, entry_path, entry_name)?;
@@ -44,11 +50,7 @@ pub struct AwcEntry {
 }
 
 impl AwcEntry {
-    pub fn from_file(
-        proj_path: &PathBuf,
-        entry_path: &PathBuf,
-        entry_name: &str,
-    ) -> Result<AwcEntry> {
+    pub fn from_file(proj_path: &PathBuf, entry_path: &Path, entry_name: &str) -> Result<AwcEntry> {
         let entry_path = entry_path.join(format!("{}.wav", entry_name));
         let ictx = ffmpeg::format::input(&entry_path)?;
 
@@ -60,7 +62,7 @@ impl AwcEntry {
 
         let sample_rate = context.decoder().audio().unwrap().rate();
 
-        let rel_path_res = entry_path.strip_prefix(&proj_path);
+        let rel_path_res = entry_path.strip_prefix(proj_path);
         if rel_path_res.is_err() {
             return Err(anyhow!(
                 "Given entry files are not stored in the project directory"

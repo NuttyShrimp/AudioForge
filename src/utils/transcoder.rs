@@ -269,7 +269,7 @@ impl TranscoderProcess {
     fn process_packet(&mut self, stream: &ffmpeg::Stream, packet: &mut ffmpeg::Packet) {
         if stream.index() == self.transcoder.stream {
             packet.rescale_ts(stream.time_base(), self.transcoder.in_time_base);
-            self.transcoder.send_packet_to_decoder(&packet);
+            self.transcoder.send_packet_to_decoder(packet);
             self.transcoder
                 .receive_and_process_decoded_frames(&mut self.octx);
         }

@@ -59,12 +59,12 @@ impl AwcGenerator {
                     let pack_label = ui.label("Pack type");
                     egui::ComboBox::from_id_source(pack_label.id)
                         .width(200.0)
-                        .selected_text(&self.creator_window_state.pack_type.to_string())
+                        .selected_text(self.creator_window_state.pack_type.to_string())
                         .show_ui(ui, |ui| {
                             for option in AwcPackType::iter() {
                                 ui.selectable_value(
                                     &mut self.creator_window_state.pack_type,
-                                    option.clone(),
+                                    option,
                                     option.to_string(),
                                 );
                             }
@@ -73,7 +73,7 @@ impl AwcGenerator {
                 if ui.button("Create").clicked() {
                     let pack = awc::AwcPack {
                         name: self.creator_window_state.name.clone(),
-                        pack_type: self.creator_window_state.pack_type.clone(),
+                        pack_type: self.creator_window_state.pack_type,
                         entries: vec![],
                     };
                     if let Some(project) = self.state.borrow_mut().active_project.as_mut() {
@@ -188,7 +188,7 @@ impl eframe::App for AwcGenerator {
                     self.creator_window_state.visible = true;
                 }
 
-                if project.awc_info.len() == 0 {
+                if project.awc_info.is_empty() {
                     return;
                 }
 
@@ -217,7 +217,7 @@ impl eframe::App for AwcGenerator {
                 return;
             }
             let project = state.active_project.as_ref().unwrap();
-            if project.awc_info.len() == 0 {
+            if project.awc_info.is_empty() {
                 return;
             }
             drop(state);
@@ -267,7 +267,7 @@ impl AwcGenerator {
             .join(awc_pack.name.clone());
         fs::create_dir_all(output_dir.as_path())?;
 
-        transcoder::encode_to_wav(&path, &output_dir)?;
+        transcoder::encode_to_wav(path, &output_dir)?;
 
         let proj_loc = project.location.clone();
         project.get_mut_entries_slice()[self.active_pack].add_entry(
@@ -282,7 +282,7 @@ impl AwcGenerator {
     // TODO: parameter should be changed to AwcEtry
     #[allow(dead_code)]
     fn split_file(&mut self, file: &DroppedFile) -> Result<()> {
-        if let None = &file.path {
+        if file.path.is_none() {
             return Err(anyhow!("Invalid dropped file: not path"));
         }
         let path = file.path.as_ref().unwrap();
@@ -298,7 +298,7 @@ impl AwcGenerator {
             .join(awc_pack.name.clone());
         fs::create_dir_all(output_dir.as_path())?;
 
-        transcoder::split_stereo_to_mono(&path, output_dir.as_path())?;
+        transcoder::split_stereo_to_mono(path, output_dir.as_path())?;
 
         let proj_loc = project.location.clone();
         project.get_mut_entries_slice()[self.active_pack].add_entry(
