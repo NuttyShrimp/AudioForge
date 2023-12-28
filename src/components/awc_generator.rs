@@ -9,7 +9,7 @@ use ffmpeg_next::{
     media,
 };
 use itertools::Itertools;
-use log::{error, info};
+use log::error;
 use strum::IntoEnumIterator;
 
 use crate::{
@@ -18,10 +18,15 @@ use crate::{
     utils::transcoder,
 };
 
+use super::inputs;
+
 pub struct AwcGenerator {
     state: Rc<RefCell<State>>,
     active_pack: usize,
     creator_window_state: AwcPackCreation,
+    // Map of awc entry indexes where the header editor windows should be shown for
+    // TODO: Are we able to refactor to only store the active indexes?
+    header_editor_window: Vec<bool>,
 }
 
 #[derive(Default)]
@@ -37,11 +42,10 @@ impl AwcGenerator {
             state,
             active_pack: 0,
             creator_window_state: AwcPackCreation::default(),
+            header_editor_window: vec![],
         }
     }
-}
 
-impl AwcGenerator {
     fn create_audio_pack_windows(&mut self, ctx: &egui::Context, show_create_window: &mut bool) {
         Window::new("Create new audio pack")
             .title_bar(true)
@@ -84,7 +88,64 @@ impl AwcGenerator {
             });
     }
 
-    fn show_awc_entry_table(&self, ui: &mut egui::Ui) {
+    fn edit_entry_header_window(&mut self, ctx: &egui::Context, awc_entry_index: usize) {
+        if self.header_editor_window.len() <= awc_entry_index {
+            return;
+        }
+
+        let mut state = self.state.borrow_mut();
+        if state.active_project.is_none() {
+            return;
+        }
+        let project = state.active_project.as_mut().unwrap();
+        let awc_pack = &mut project.awc_info[self.active_pack];
+        let awc_entry = &mut awc_pack.entries[awc_entry_index];
+
+        Window::new(format!("Edit entry headers {}", awc_entry.name))
+            .title_bar(true)
+            .collapsible(false)
+            .resizable(false)
+            .default_size([600.0, 300.0])
+            .open(&mut self.header_editor_window[awc_entry_index])
+            .show(ctx, |ui| {
+                let headers = &mut awc_entry.headers;
+                // TODO: Can this be done via loops?
+                ui.horizontal(|ui| {
+                    let label = ui.label("Category");
+                    ui.text_edit_singleline(&mut headers.category)
+                        .labelled_by(label.id);
+                });
+
+                ui.horizontal(|ui| {
+                    let label = ui.label("Volume");
+                    ui.add(egui::widgets::DragValue::new(&mut headers.volume))
+                        .labelled_by(label.id)
+                        .on_hover_ui(|ui| {
+                            ui.label("each 100 represent 10% in volume increase, recommended to be 100, max 65535");
+                        });
+                });
+
+                ui.horizontal(|ui| {
+                    let label = ui.label("Volume Curve Hash (AKA Rolloff Hash)");
+                    ui.text_edit_singleline(&mut headers.volume_curve)
+                        .labelled_by(label.id)
+                        .on_hover_ui(|ui| {
+                            ui.label("Distance attenuation curves");
+                        });
+                });
+
+                inputs::drag_value(ui, "Volume Distance", &mut headers.volume_curve_distance, Some("0 - 65535, How for the sound can be heard"));
+                inputs::optional_drag_value(ui, "Doppler Factor", &mut headers.doppler_factor, Some("0 - 65535"));
+                inputs::optional_drag_value(ui, "Attack Time", &mut headers.attack_time, Some("Fade-in time, 0 - 65535"));
+                inputs::optional_drag_value(ui, "Release Time", &mut headers.release_time, Some("Fade-out time, 0 - 65535"));
+                inputs::drag_value(ui, "Stereo Panning", &mut headers.unk20, Some("0 for stereo, see Monkeys audio research for other options"));
+                inputs::optional_drag_value(ui, "Echo x", &mut headers.echo_x, None);
+                inputs::optional_drag_value(ui, "Echo y", &mut headers.echo_y, None);
+                inputs::optional_drag_value(ui, "Echo z", &mut headers.echo_z, None);
+            });
+    }
+
+    fn show_awc_entry_table(&mut self, ui: &mut egui::Ui) {
         let mut state = self.state.borrow_mut();
         if state.active_project.is_none() {
             return;
@@ -134,7 +195,10 @@ impl AwcGenerator {
                             });
                             row.col(|ui| {
                                 if ui.button("Headers").clicked() {
-                                    info!("OPen headers popup")
+                                    if self.header_editor_window.len() <= row_index {
+                                        self.header_editor_window.resize(row_index + 1, false);
+                                    }
+                                    self.header_editor_window[row_index] = true;
                                 };
                             });
                             row.col(|ui| {
@@ -158,6 +222,18 @@ impl eframe::App for AwcGenerator {
             self.create_audio_pack_windows(ctx, &mut show_create_window);
         }
         self.creator_window_state.visible &= show_create_window;
+
+        let state = self.state.borrow();
+        if state.active_project.is_none() {
+            return;
+        }
+        let project = state.active_project.as_ref().unwrap();
+        let pack_count = project.awc_info[self.active_pack].entries.len();
+        drop(state);
+
+        for i in 0..pack_count {
+            self.edit_entry_header_window(ctx, i);
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {

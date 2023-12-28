@@ -1,3 +1,4 @@
+use log::info;
 use std::{
     fs::File,
     io::{Read, Write},
@@ -59,6 +60,7 @@ impl Project {
         let json_str = serde_json::to_string(self)?;
         let mut f = File::create(self.location.join("info.json"))?;
         f.write_all(json_str.as_bytes())?;
+        info!("Saved project");
         Ok(())
     }
 
