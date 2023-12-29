@@ -25,7 +25,7 @@ impl Project {
         Ok(())
     }
 
-    fn open_project(path: &Path) -> Result<Project> {
+    pub fn open_project(path: &Path) -> Result<Project> {
         let mut f = File::open(path.join("info.json"))?;
         let mut buffer = String::new();
 
@@ -68,4 +68,19 @@ impl Project {
         self.awc_info.push(pack);
         self.awc_info.sort();
     }
+}
+
+pub fn add_to_recent_projects(frame: &mut eframe::Frame, path: PathBuf) {
+    let storage = frame.storage_mut().unwrap();
+    let recent_projects_str = storage.get_string("project_history");
+    let mut recent_projects = Vec::<PathBuf>::new();
+    if let Some(paths) = recent_projects_str {
+        recent_projects = serde_json::from_str(&paths).unwrap();
+    }
+    recent_projects.insert(0, path);
+    recent_projects.truncate(10);
+    storage.set_string(
+        "project_history",
+        serde_json::to_string(&recent_projects).unwrap(),
+    );
 }
