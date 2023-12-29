@@ -45,6 +45,7 @@
         xorg.libxcb
         gtkd
         clang
+        gnome.zenity
 
         ffmpeg
         libclang

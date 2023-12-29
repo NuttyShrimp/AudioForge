@@ -1,6 +1,6 @@
 use log::info;
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
@@ -43,8 +43,26 @@ impl Project {
     // Opens directory picker
     pub fn choose_project() -> Result<Project> {
         if let Some(path) = rfd::FileDialog::new().pick_folder() {
-            if !Project::is_folder_a_project(path.as_path()) {
-                Project::create_project(&path)?;
+            let mut valid = Project::is_folder_a_project(path.as_path());
+            if !valid {
+                if fs::read_dir(path.as_path()).unwrap().count() > 0 {
+                    if rfd::MessageDialog::new()
+                        .set_title("Create project in folder with files")
+                        .set_description("Are you sure you want to create a project in a folder which already contain files")
+                        .set_buttons(rfd::MessageButtons::YesNo)
+                        .show()
+                        == rfd::MessageDialogResult::Yes
+                        {
+                            Project::create_project(&path)?;
+                            valid = true;
+                        }
+                } else {
+                    Project::create_project(&path)?;
+                    valid = true;
+                }
+            }
+            if !valid {
+                return Err(anyhow::format_err!(""));
             }
             let proj = Project::open_project(&path)?;
             return Ok(proj);
