@@ -228,11 +228,15 @@ impl eframe::App for AwcGenerator {
             return;
         }
         let project = state.active_project.as_ref().unwrap();
-        let pack_count = project.awc_info[self.active_pack].entries.len();
-        drop(state);
+        if project.awc_info.len() > 0 {
+            let pack_count = project.awc_info[self.active_pack].entries.len();
+            drop(state);
 
-        for i in 0..pack_count {
-            self.edit_entry_header_window(ctx, i);
+            for i in 0..pack_count {
+                self.edit_entry_header_window(ctx, i);
+            }
+        } else {
+            drop(state);
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -243,21 +247,32 @@ impl eframe::App for AwcGenerator {
                 }
                 let project = state.active_project.as_ref().unwrap();
 
-                egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
-                    .selected_text(&project.awc_info[self.active_pack].name)
-                    .show_ui(ui, |ui| {
-                        project
-                            .awc_info
-                            .iter()
-                            .group_by(|e| e.pack_type)
-                            .into_iter()
-                            .for_each(|(key, group)| {
-                                ui.add(egui::Label::new(key.to_string()).wrap(false));
-                                for (awc_pack, i) in group.into_iter().zip(0..) {
-                                    ui.selectable_value(&mut self.active_pack, i, &awc_pack.name);
-                                }
-                            });
+                if project.awc_info.len() > 0 {
+                    egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
+                        .selected_text(&project.awc_info[self.active_pack].name)
+                        .show_ui(ui, |ui| {
+                            project
+                                .awc_info
+                                .iter()
+                                .group_by(|e| e.pack_type)
+                                .into_iter()
+                                .for_each(|(key, group)| {
+                                    ui.add(egui::Label::new(key.to_string()).wrap(false));
+                                    for (awc_pack, i) in group.into_iter().zip(0..) {
+                                        ui.selectable_value(
+                                            &mut self.active_pack,
+                                            i,
+                                            &awc_pack.name,
+                                        );
+                                    }
+                                });
+                        });
+                } else {
+                    ui.add_enabled_ui(false, |ui| {
+                        egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
+                            .show_ui(ui, |_ui| {});
                     });
+                }
 
                 if ui.button("New audio pack").clicked() {
                     self.creator_window_state.name = String::from("");
