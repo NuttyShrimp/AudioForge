@@ -1,3 +1,5 @@
+use anyhow::Result;
+use log::error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,4 +49,21 @@ impl Unk {
 #[serde(rename = "List")]
 pub struct ItemList<T> {
     pub item: Vec<T>,
+}
+
+pub fn serialize_str<T>(xml_struct: &T) -> Result<String>
+where
+    T: ?Sized + Serialize,
+{
+    // Parse to string and write to file
+    let serialized = quick_xml::se::to_string(&xml_struct);
+
+    if serialized.is_err() {
+        error!("Failed to serialize xml: {:?}", serialized.unwrap_err());
+        return Err(anyhow::format_err!("Failed to serialize xml"));
+    }
+
+    let serialized = serialized.unwrap();
+    let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string() + &serialized;
+    Ok(serialized)
 }

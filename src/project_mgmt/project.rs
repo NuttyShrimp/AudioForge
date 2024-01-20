@@ -117,16 +117,7 @@ impl Project {
             }
         };
 
-        // Parse to string and write to file
-        let serialized = quick_xml::se::to_string(&awc_xml);
-
-        if serialized.is_err() {
-            error!("Failed to serialize xml: {:?}", serialized.unwrap_err());
-            return Err(anyhow::format_err!("Failed to serialize xml"));
-        }
-
-        let serialized = serialized.unwrap();
-        let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string() + &serialized;
+        let serialized = xml::serialize_str(&awc_xml)?;
 
         let mut f = File::create(
             self.location
