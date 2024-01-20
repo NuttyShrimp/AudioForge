@@ -1,4 +1,6 @@
 extern crate ffmpeg_next as ffmpeg;
+use itertools::Itertools;
+use log::info;
 use std::path::Path;
 
 use anyhow::Result;
@@ -64,6 +66,9 @@ fn transcoder(
 
     let mut decoder = context.decoder().audio()?;
     decoder.set_parameters(input.parameters())?;
+    if decoder.channel_layout().is_empty() {
+        decoder.set_channel_layout(ChannelLayout::STEREO);
+    }
 
     let codec = encoder::find(codec::Id::PCM_S16LE)
         .expect("Could not find wanted output codec")
@@ -76,9 +81,9 @@ fn transcoder(
     // Output config
     octx.set_metadata(ictx.metadata().to_owned());
     let mut ost = octx.add_stream(codec)?;
+
     let context = ffmpeg_next::codec::context::Context::from_parameters(ost.parameters())?;
     let mut encoder = context.encoder().audio()?;
-
     if global {
         encoder.set_flags(ffmpeg_next::codec::flag::Flags::GLOBAL_HEADER);
     }
@@ -96,7 +101,6 @@ fn transcoder(
     );
     encoder.set_bit_rate(decoder.bit_rate());
     encoder.set_max_bit_rate(decoder.max_bit_rate());
-    encoder.set_time_base((1, decoder.rate() as i32));
 
     encoder.set_time_base((1, decoder.rate() as i32));
     ost.set_time_base((1, decoder.rate() as i32));
@@ -129,7 +133,15 @@ pub fn encode_to_wav(input: &Path, output_dir: &Path) -> Result<()> {
             .as_path(),
     )?;
 
-    let transcoder = transcoder(&mut ictx, &mut octx, "anull", ChannelLayout::MONO)?;
+    let input = ictx
+        .streams()
+        .best(media::Type::Audio)
+        .expect("could not find best audio stream");
+    let context = ffmpeg_next::codec::context::Context::from_parameters(input.parameters())?;
+    let mut decoder = context.decoder().audio()?;
+    decoder.set_parameters(input.parameters())?;
+
+    let transcoder = transcoder(&mut ictx, &mut octx, "anull", decoder.channel_layout())?;
 
     octx.write_header().unwrap();
 

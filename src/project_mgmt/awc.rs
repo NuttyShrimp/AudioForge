@@ -1,10 +1,16 @@
 extern crate ffmpeg_next as ffmpeg;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{anyhow, Result};
 use strum::EnumIter;
 
-use crate::dat_files::dat54;
+use crate::{
+    dat_files::dat54,
+    utils::{transcoder, xml},
+};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct AwcPack {
@@ -80,6 +86,55 @@ impl AwcEntry {
             samples: ictx.duration().wrapping_mul(sample_rate.into()),
         })
     }
+
+    pub fn generate_splitted_variant(&self, proj_loc: &Path) {
+        let file_path = proj_loc.join(&self.path);
+        let output_dir = proj_loc
+            .join("output/awc/.packs/")
+            .join(self.path.file_stem().unwrap().to_string_lossy().to_string());
+        fs::create_dir_all(&output_dir);
+        transcoder::split_stereo_to_mono(&file_path, &output_dir);
+    }
+
+    pub fn to_xml_stream(&self) -> Vec<AwcStream> {
+        let mut streams = vec![];
+
+        let left_name = format!("{}_left", self.name);
+
+        streams.push(AwcStream {
+            name: xml::InlineValue::new(&left_name),
+            file_name: xml::InlineValue::new(&format!("{}.wav", &left_name)),
+            chunks: xml::ItemList {
+                item: vec![
+                    AwcChunk::Peak,
+                    AwcChunk::Data,
+                    AwcChunk::Format(AwcFormatChunk::new(
+                        self.samples.try_into().unwrap(),
+                        self.sample_rate,
+                    )),
+                ],
+            },
+        });
+
+        let right_name = format!("{}_right", self.name);
+
+        streams.push(AwcStream {
+            name: xml::InlineValue::new(&right_name),
+            file_name: xml::InlineValue::new(&format!("{}.wav", &right_name)),
+            chunks: xml::ItemList {
+                item: vec![
+                    AwcChunk::Peak,
+                    AwcChunk::Data,
+                    AwcChunk::Format(AwcFormatChunk::new(
+                        self.samples.try_into().unwrap(),
+                        self.sample_rate,
+                    )),
+                ],
+            },
+        });
+
+        return streams;
+    }
 }
 
 #[derive(
@@ -106,6 +161,79 @@ impl ToString for AwcPackType {
         match self {
             AwcPackType::Simple => String::from("Simple (Not-streamed)"),
             AwcPackType::Radio => String::from("Radio (Streamed)"),
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase", rename = "AudioWaveContainer")]
+pub struct AwcXML {
+    pub version: xml::Value<u8>,
+    pub chunk_indices: xml::Value<String>,
+    #[serde(rename = "Streams")]
+    pub streams: xml::ItemList<AwcStream>,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(rename = "Item")]
+pub struct AwcStream {
+    name: xml::InlineValue,
+    file_name: xml::InlineValue,
+    #[serde(rename = "Chunks")]
+    chunks: xml::ItemList<AwcChunk>,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "Type", rename_all = "snake_case")]
+enum AwcChunk {
+    Peak,
+    Data,
+    Format(AwcFormatChunk),
+}
+
+// TODO: remove left-over or rewrite enum to use tagging and use these struct for ease of use
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(rename = "Item")]
+struct AwcBaseChunk {
+    #[serde(rename = "Type")]
+    chunk_type: xml::InlineValue,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(rename = "Item")]
+struct AwcFormatChunk {
+    // #[serde(rename = "Type")]
+    // chunk_type: xml::InlineValue,
+    codec: xml::InlineValue,
+    samples: xml::Value<u64>,
+    sample_rate: xml::Value<u32>,
+    // Mostly -161
+    headroom: xml::Value<i16>,
+    play_begin: xml::Value<i16>,
+    play_end: xml::Value<i16>,
+    loop_begin: xml::Value<u16>,
+    loop_end: xml::Value<u16>,
+    loop_point: xml::Value<i16>,
+    peak: xml::Unk,
+}
+
+impl AwcFormatChunk {
+    pub fn new(samples: u64, sample_rate: u32) -> Self {
+        Self {
+            // chunk_type: xml::InlineValue::new("format"),
+            codec: xml::InlineValue::new("ADPCM"),
+            samples: xml::Value::new(samples),
+            sample_rate: xml::Value::new(sample_rate),
+            headroom: xml::Value::new(-161),
+            play_begin: xml::Value::new(0),
+            play_end: xml::Value::new(0),
+            loop_begin: xml::Value::new(0),
+            loop_end: xml::Value::new(0),
+            loop_point: xml::Value::new(-1),
+            peak: xml::Unk::new("0"),
         }
     }
 }

@@ -1,11 +1,13 @@
-use log::info;
+use log::{error, info};
 use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
 
-use super::awc::{self, AwcPack};
+use crate::utils::xml;
+
+use super::awc::{self, AwcPack, AwcXML};
 use anyhow::Result;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -85,6 +87,54 @@ impl Project {
     pub fn add_awc_pack(&mut self, pack: AwcPack) {
         self.awc_info.push(pack);
         self.awc_info.sort();
+    }
+
+    pub fn generate_awc_file(&self, awc_pack_index: usize) -> Result<()> {
+        let awc_pack = &self.awc_info[awc_pack_index];
+        fs::create_dir_all(
+            self.location
+                .join(format!("output/awc/.packs/{}/", &awc_pack.name)),
+        )?;
+
+        let awc_xml: awc::AwcXML = match awc_pack.pack_type {
+            awc::AwcPackType::Simple => {
+                let mut streams = vec![];
+
+                for ele in &awc_pack.entries {
+                    ele.generate_splitted_variant(&self.location);
+                    let entry_streams = ele.to_xml_stream();
+                    streams.extend(entry_streams);
+                }
+
+                AwcXML {
+                    version: xml::Value::new(1),
+                    chunk_indices: xml::Value::new("True".to_string()),
+                    streams: xml::ItemList { item: streams },
+                }
+            }
+            awc::AwcPackType::Radio => {
+                todo!();
+            }
+        };
+
+        // Parse to string and write to file
+        let serialized = quick_xml::se::to_string(&awc_xml);
+
+        if serialized.is_err() {
+            error!("Failed to serialize xml: {:?}", serialized.unwrap_err());
+            return Err(anyhow::format_err!("Failed to serialize xml"));
+        }
+
+        let serialized = serialized.unwrap();
+        let serialized = r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string() + &serialized;
+
+        let mut f = File::create(
+            self.location
+                .join(format!("output/awc/.packs/{}.xml", &awc_pack.name)),
+        )?;
+        f.write_all(serialized.as_bytes())?;
+
+        Ok(())
     }
 }
 

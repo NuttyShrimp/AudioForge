@@ -2,7 +2,7 @@ use std::{cell::RefCell, fs, path::Path, rc::Rc};
 
 use anyhow::{anyhow, Result};
 use eframe::egui;
-use egui::{DroppedFile, Id, Window};
+use egui::{Button, DroppedFile, Id, Window};
 use egui_extras::{Column, TableBuilder};
 use ffmpeg_next::{
     format::{self},
@@ -228,6 +228,8 @@ impl eframe::App for AwcGenerator {
             return;
         }
         let project = state.active_project.as_ref().unwrap();
+        let is_awc_pack_selected = project.awc_info.is_empty();
+
         if project.awc_info.len() > 0 {
             let pack_count = project.awc_info[self.active_pack].entries.len();
             drop(state);
@@ -246,6 +248,7 @@ impl eframe::App for AwcGenerator {
                     return;
                 }
                 let project = state.active_project.as_ref().unwrap();
+                let project_loc = project.location.clone();
 
                 if project.awc_info.len() > 0 {
                     egui::ComboBox::from_id_source(Id::new("awc_generator_pack_selector"))
@@ -279,39 +282,44 @@ impl eframe::App for AwcGenerator {
                     self.creator_window_state.visible = true;
                 }
 
-                if project.awc_info.is_empty() {
-                    return;
-                }
-
                 drop(state);
-
-                if ui.button("Add audio file").clicked() {
-                    // TODO: Make this usable in spawnable thread so render thread is not blocked
-                    if let Some(paths) = rfd::FileDialog::new()
-                        .set_title("Select to be added audio files")
-                        .pick_files()
-                    {
-                        for path in paths {
-                            if self::AwcGenerator::validate_file(&path).is_ok() {
-                                let process = self.import_file(&path);
-                                if process.is_err() {
-                                    error!("{:?}", process.unwrap_err());
-                                }
-                            };
+                if !is_awc_pack_selected {
+                    if ui.button("Add audio file").clicked() {
+                        // TODO: Make this usable in spawnable thread so render thread is not blocked
+                        if let Some(paths) = rfd::FileDialog::new()
+                            .set_title("Select to be added audio files")
+                            .pick_files()
+                        {
+                            for path in paths {
+                                if self::AwcGenerator::validate_file(&path).is_ok() {
+                                    let process = self.import_file(&path);
+                                    if process.is_err() {
+                                        error!("{:?}", process.unwrap_err());
+                                    }
+                                };
+                            }
                         }
                     }
                 }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button("Generate FiveM resource").clicked() {
+                        let _ = fs::create_dir_all(project_loc.join("output/awc_resource"));
+                        let state = self.state.borrow();
+                        if state.active_project.is_none() {
+                            return;
+                        }
+                        let project = state.active_project.as_ref().unwrap();
+                        project.generate_awc_file(self.active_pack);
+
+                        // our AwcXML struct serialized to xml
+                        // TODO: generate dat54 file
+                    }
+                });
             });
 
-            let state = self.state.borrow();
-            if state.active_project.is_none() {
+            if is_awc_pack_selected {
                 return;
             }
-            let project = state.active_project.as_ref().unwrap();
-            if project.awc_info.is_empty() {
-                return;
-            }
-            drop(state);
 
             self.show_awc_entry_table(ui);
             ui.set_min_height(ui.available_height());
@@ -359,37 +367,6 @@ impl AwcGenerator {
         fs::create_dir_all(output_dir.as_path())?;
 
         transcoder::encode_to_wav(path, &output_dir)?;
-
-        let proj_loc = project.location.clone();
-        project.get_mut_entries_slice()[self.active_pack].add_entry(
-            &proj_loc,
-            &output_dir,
-            entry_name,
-        )?;
-
-        Ok(())
-    }
-
-    // TODO: parameter should be changed to AwcEtry
-    #[allow(dead_code)]
-    fn split_file(&mut self, file: &DroppedFile) -> Result<()> {
-        if file.path.is_none() {
-            return Err(anyhow!("Invalid dropped file: not path"));
-        }
-        let path = file.path.as_ref().unwrap();
-        let mut state = self.state.borrow_mut();
-        let project = state.active_project.as_mut().unwrap();
-        let awc_pack = &project.awc_info[self.active_pack];
-
-        let entry_name = &path.file_stem().unwrap().to_string_lossy().to_string();
-        let output_dir = project
-            .location
-            .clone()
-            .join("awc_packs")
-            .join(awc_pack.name.clone());
-        fs::create_dir_all(output_dir.as_path())?;
-
-        transcoder::split_stereo_to_mono(path, output_dir.as_path())?;
 
         let proj_loc = project.location.clone();
         project.get_mut_entries_slice()[self.active_pack].add_entry(
