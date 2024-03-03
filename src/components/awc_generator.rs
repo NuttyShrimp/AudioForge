@@ -310,8 +310,6 @@ impl eframe::App for AwcGenerator {
                         }
                         let project = state.active_project.as_ref().unwrap();
                         project.generate_awc_file(self.active_pack);
-
-                        // our AwcXML struct serialized to xml
                         // TODO: generate dat54 file
                     }
                 });
